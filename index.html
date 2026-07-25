@@ -77,7 +77,7 @@ main{max-width:520px;margin:0 auto;padding:0 16px}
   width:100%;
   border:2px solid var(--line);
   border-radius:14px;
-  padding:14px 44px 14px 14px;
+  padding:14px 50px 14px 14px;
   font-size:16px;
   background:var(--cream);
   color:var(--ink);
@@ -87,6 +87,23 @@ main{max-width:520px;margin:0 auto;padding:0 16px}
 .input-wrap .mic-hint{
   position:absolute;right:12px;top:50%;transform:translateY(-50%);
   font-size:18px;opacity:.55;pointer-events:none;
+}
+.mic-btn{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:36px;height:36px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;background:var(--cream-2);color:var(--navy);
+  transition:background .15s ease, transform .15s ease;
+}
+.mic-btn:active{transform:translateY(-50%) scale(.9)}
+.mic-btn.listening{
+  background:var(--danger);color:#fff;
+  animation:micPulse 1s ease-in-out infinite;
+}
+.mic-btn.unsupported{opacity:.4}
+@keyframes micPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(196,72,60,.45)}
+  50%{box-shadow:0 0 0 8px rgba(196,72,60,0)}
 }
 .dt-row{display:flex;gap:10px;margin-bottom:12px}
 .dt-input{
@@ -205,10 +222,10 @@ footer{
 
 <main>
   <div class="add-card">
-    <div class="label">内容（🎤 音声入力OK）</div>
+    <div class="label">内容（🎤 マイクをタップで音声入力）</div>
     <div class="input-wrap">
       <input type="text" id="contentInput" class="content-input" placeholder="例）お弁当をレンジから出す" maxlength="200">
-      <span class="mic-hint">🎤</span>
+      <button type="button" class="mic-btn" id="micBtn" aria-label="音声入力">🎤</button>
     </div>
 
     <div class="label">日時</div>
@@ -442,6 +459,68 @@ function handleSave(){
 }
 saveBtn.addEventListener('click', handleSave);
 contentInput.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); handleSave(); } });
+
+/* ============================================================
+   ワンタップ音声入力（Web Speech API）
+============================================================ */
+const micBtn = document.getElementById('micBtn');
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let listening = false;
+let baseTextBeforeListening = '';
+
+if(SpeechRecognitionCtor){
+  recognition = new SpeechRecognitionCtor();
+  recognition.lang = 'ja-JP';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onresult = (e) => {
+    let finalText = '';
+    let interimText = '';
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const chunk = e.results[i][0].transcript;
+      if(e.results[i].isFinal) finalText += chunk;
+      else interimText += chunk;
+    }
+    contentInput.value = (baseTextBeforeListening + finalText + interimText).slice(0,200);
+  };
+  recognition.onend = () => {
+    listening = false;
+    micBtn.classList.remove('listening');
+    baseTextBeforeListening = contentInput.value;
+  };
+  recognition.onerror = (e) => {
+    listening = false;
+    micBtn.classList.remove('listening');
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      showToast('マイクの使用が許可されていません');
+    }else if(e.error !== 'no-speech' && e.error !== 'aborted'){
+      showToast('音声入力でエラーが発生しました');
+    }
+  };
+
+  micBtn.addEventListener('click', () => {
+    if(listening){
+      recognition.stop();
+      return;
+    }
+    baseTextBeforeListening = contentInput.value ? contentInput.value + '　' : '';
+    try{
+      recognition.start();
+      listening = true;
+      micBtn.classList.add('listening');
+    }catch(e){
+      showToast('音声入力を開始できませんでした');
+    }
+  });
+}else{
+  micBtn.classList.add('unsupported');
+  micBtn.addEventListener('click', () => {
+    showToast('この端末は音声入力に対応していません。キーボードのマイクをご利用ください');
+    contentInput.focus();
+  });
+}
 
 /* ============================================================
    一覧表示
