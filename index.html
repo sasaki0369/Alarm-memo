@@ -216,13 +216,32 @@ footer{
       <input type="datetime-local" id="dtInput" class="dt-input">
     </div>
 
-    <div class="chips" id="chips">
-      <button class="chip" data-min="5">5分後</button>
-      <button class="chip" data-min="15">15分後</button>
-      <button class="chip" data-min="30">30分後</button>
-      <button class="chip" data-min="60">1時間後</button>
-      <button class="chip" data-min="180">3時間後</button>
-      <button class="chip" data-tomorrow="9">明日9時</button>
+    <div class="label">今日</div>
+    <div class="chips" id="chipsToday">
+      <button class="chip" data-day="0" data-hour="9">9時</button>
+      <button class="chip" data-day="0" data-hour="12">12時</button>
+      <button class="chip" data-day="0" data-hour="15">15時</button>
+      <button class="chip" data-day="0" data-hour="18">18時</button>
+      <button class="chip" data-day="0" data-hour="21">21時</button>
+    </div>
+
+    <div class="label">明日</div>
+    <div class="chips" id="chipsTomorrow">
+      <button class="chip" data-day="1" data-hour="9">9時</button>
+      <button class="chip" data-day="1" data-hour="12">12時</button>
+      <button class="chip" data-day="1" data-hour="15">15時</button>
+      <button class="chip" data-day="1" data-hour="18">18時</button>
+      <button class="chip" data-day="1" data-hour="21">21時</button>
+    </div>
+
+    <div class="label">追加</div>
+    <div class="chips" id="chipsAdd">
+      <button class="chip" data-add="5">5分後</button>
+      <button class="chip" data-add="10">10分後</button>
+      <button class="chip" data-add="30">30分後</button>
+      <button class="chip" data-add="60">1時間後</button>
+      <button class="chip" data-add="1440">1日後</button>
+      <button class="chip" data-add="10080">1週間後</button>
     </div>
 
     <button class="save-btn" id="saveBtn">＋ アラームを登録</button>
@@ -361,29 +380,37 @@ function toLocalInputValue(d){
 }
 
 function defaultDatetime(){
-  const d = new Date(Date.now() + 15*60000);
+  const d = new Date();
   d.setSeconds(0,0);
-  const rem = d.getMinutes() % 5;
-  if(rem !== 0) d.setMinutes(d.getMinutes() + (5-rem));
   return d;
 }
 dtInput.value = toLocalInputValue(defaultDatetime());
 
-document.getElementById('chips').addEventListener('click', e => {
+function currentDtOrNow(){
+  const v = dtInput.value ? new Date(dtInput.value) : null;
+  return (v && !isNaN(v.getTime())) ? v : new Date();
+}
+
+function handleChipClick(e){
   const btn = e.target.closest('.chip');
   if(!btn) return;
-  let target;
-  if(btn.dataset.min){
-    target = new Date(Date.now() + parseInt(btn.dataset.min,10)*60000);
-    target.setSeconds(0,0);
-  }else if(btn.dataset.tomorrow){
-    target = new Date();
-    target.setDate(target.getDate()+1);
-    target.setHours(parseInt(btn.dataset.tomorrow,10),0,0,0);
+  if(btn.dataset.add !== undefined){
+    // 加算チップ：現在設定されている日時に加算（連打で積み上がる）
+    const base = currentDtOrNow();
+    const target = new Date(base.getTime() + parseInt(btn.dataset.add,10)*60000);
+    dtInput.value = toLocalInputValue(target);
+  }else if(btn.dataset.hour !== undefined){
+    // 絶対時刻チップ：今日/明日の指定時刻に上書き
+    const target = new Date();
+    target.setDate(target.getDate() + parseInt(btn.dataset.day,10));
+    target.setHours(parseInt(btn.dataset.hour,10),0,0,0);
+    dtInput.value = toLocalInputValue(target);
   }
-  if(target) dtInput.value = toLocalInputValue(target);
   contentInput.focus();
-});
+}
+document.getElementById('chipsToday').addEventListener('click', handleChipClick);
+document.getElementById('chipsTomorrow').addEventListener('click', handleChipClick);
+document.getElementById('chipsAdd').addEventListener('click', handleChipClick);
 
 function resetForm(){
   contentInput.value = '';
