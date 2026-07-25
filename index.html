@@ -235,30 +235,30 @@ footer{
 
     <div class="label">今日</div>
     <div class="chips" id="chipsToday">
-      <button class="chip" data-day="0" data-hour="9">9時</button>
-      <button class="chip" data-day="0" data-hour="12">12時</button>
-      <button class="chip" data-day="0" data-hour="15">15時</button>
-      <button class="chip" data-day="0" data-hour="18">18時</button>
-      <button class="chip" data-day="0" data-hour="21">21時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="0" data-hour="9">9時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="0" data-hour="12">12時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="0" data-hour="15">15時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="0" data-hour="18">18時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="0" data-hour="21">21時</button>
     </div>
 
     <div class="label">明日</div>
     <div class="chips" id="chipsTomorrow">
-      <button class="chip" data-day="1" data-hour="9">9時</button>
-      <button class="chip" data-day="1" data-hour="12">12時</button>
-      <button class="chip" data-day="1" data-hour="15">15時</button>
-      <button class="chip" data-day="1" data-hour="18">18時</button>
-      <button class="chip" data-day="1" data-hour="21">21時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="1" data-hour="9">9時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="1" data-hour="12">12時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="1" data-hour="15">15時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="1" data-hour="18">18時</button>
+      <button type="button" tabindex="-1" class="chip" data-day="1" data-hour="21">21時</button>
     </div>
 
     <div class="label">追加</div>
     <div class="chips" id="chipsAdd">
-      <button class="chip" data-add="5">5分後</button>
-      <button class="chip" data-add="10">10分後</button>
-      <button class="chip" data-add="30">30分後</button>
-      <button class="chip" data-add="60">1時間後</button>
-      <button class="chip" data-add="1440">1日後</button>
-      <button class="chip" data-add="10080">1週間後</button>
+      <button type="button" tabindex="-1" class="chip" data-add="5">5分後</button>
+      <button type="button" tabindex="-1" class="chip" data-add="10">10分後</button>
+      <button type="button" tabindex="-1" class="chip" data-add="30">30分後</button>
+      <button type="button" tabindex="-1" class="chip" data-add="60">1時間後</button>
+      <button type="button" tabindex="-1" class="chip" data-add="1440">1日後</button>
+      <button type="button" tabindex="-1" class="chip" data-add="10080">1週間後</button>
     </div>
 
     <button class="save-btn" id="saveBtn">＋ アラームを登録</button>
@@ -411,6 +411,7 @@ function currentDtOrNow(){
 function handleChipClick(e){
   const btn = e.target.closest('.chip');
   if(!btn) return;
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   if(btn.dataset.add !== undefined){
     // 加算チップ：現在設定されている日時に加算（連打で積み上がる）
     const base = currentDtOrNow();
@@ -423,11 +424,15 @@ function handleChipClick(e){
     target.setHours(parseInt(btn.dataset.hour,10),0,0,0);
     dtInput.value = toLocalInputValue(target);
   }
-  contentInput.focus();
 }
 document.getElementById('chipsToday').addEventListener('click', handleChipClick);
 document.getElementById('chipsTomorrow').addEventListener('click', handleChipClick);
 document.getElementById('chipsAdd').addEventListener('click', handleChipClick);
+['chipsToday','chipsTomorrow','chipsAdd'].forEach(id=>{
+  document.getElementById(id).addEventListener('pointerdown', e=>{
+    if(e.target.closest('.chip')) e.preventDefault();
+  });
+});
 
 function resetForm(){
   contentInput.value = '';
