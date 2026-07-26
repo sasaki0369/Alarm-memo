@@ -207,6 +207,15 @@ main{max-width:520px;margin:0 auto;padding:0 16px}
   border-radius:14px;padding:10px 14px;margin:14px 4px 0;line-height:1.5;
 }
 .setup-banner code{background:#fff;padding:1px 5px;border-radius:5px;font-size:11.5px}
+.push-row{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+.push-btn{
+  width:100%;background:var(--navy);color:#fff;font-size:14.5px;font-weight:800;
+  padding:12px;border-radius:12px;
+}
+.push-btn:active{opacity:.85}
+.push-btn.enabled{background:var(--ok)}
+.push-btn:disabled{opacity:.5}
+.push-status{text-align:center;font-size:11.5px;color:var(--sub);margin-top:6px}
 footer{
   text-align:center;color:var(--sub);font-size:11px;margin-top:34px;padding:0 20px;line-height:1.7;
 }
@@ -266,6 +275,11 @@ footer{
     <div class="setup-banner" id="setupBanner" style="display:none">
       ⚠️ Firebase未設定のため、この端末のみに保存されます。複数端末で同期するには、コード冒頭の <code>firebaseConfig</code> をご自身のFirebaseプロジェクトの値に書き換えてください。
     </div>
+
+    <div class="push-row" id="pushRow">
+      <button class="push-btn" id="pushBtn">🔒 ロック中も通知を受け取る</button>
+      <div class="push-status" id="pushStatus">未設定（Android推奨）</div>
+    </div>
   </div>
 
   <div class="section-title">
@@ -295,6 +309,7 @@ footer{
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script>
 /* ============================================================
    Firebase設定
@@ -323,6 +338,77 @@ try{
 }catch(e){ console.warn('Firebase init failed, fallback to localStorage', e); }
 
 document.getElementById('setupBanner').style.display = useFirebase ? 'none' : 'block';
+
+/* ============================================================
+   ロック中プッシュ通知（Firebase Cloud Messaging / Android向け）
+   要設定：
+   1. Firebaseコンソール → プロジェクトの設定 → Cloud Messaging →
+      「ウェブ配信証明書」で鍵ペア（VAPIDキー）を生成し、下の値を書き換える
+   2. 同じフォルダに firebase-messaging-sw.js を配置する（別途お渡しします）
+   3. サーバー側（Cloud Functions）のデプロイが別途必要です
+============================================================ */
+const VAPID_KEY = "BOfzVfkzCDACnI0kSDdvdXQYhk-_WHmjD0pD42Hgb4oOLyY7yxe1jvw4GP9jigwX62SgpCUGc53xoW0y2TV9DSk";
+
+const pushBtn = document.getElementById('pushBtn');
+const pushStatus = document.getElementById('pushStatus');
+let messaging = null;
+
+function setPushStatus(text, enabled){
+  pushStatus.textContent = text;
+  pushBtn.classList.toggle('enabled', !!enabled);
+}
+
+if(!useFirebase){
+  pushBtn.disabled = true;
+  setPushStatus('Firebase未設定のため利用できません');
+}else if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+  pushBtn.disabled = true;
+  setPushStatus('この端末・ブラウザは非対応です（Android Chrome推奨）');
+}else if(VAPID_KEY === "YOUR_VAPID_KEY"){
+  pushBtn.disabled = true;
+  setPushStatus('VAPIDキー未設定のため利用できません');
+}else{
+  messaging = firebase.messaging();
+  if(Notification.permission === 'granted' && localStorage.getItem('alarm_memo_push_token')){
+    setPushStatus('有効になっています', true);
+  }else{
+    setPushStatus('未設定（タップして有効化）');
+  }
+}
+
+async function enablePush(){
+  if(!messaging) return;
+  try{
+    setPushStatus('登録中…');
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted'){
+      setPushStatus('通知が許可されませんでした');
+      return;
+    }
+    const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+    if(!token){
+      setPushStatus('トークンの取得に失敗しました');
+      return;
+    }
+    await firebase.database().ref('fcmTokens/' + token).set({ createdAt: Date.now() });
+    localStorage.setItem('alarm_memo_push_token', token);
+    setPushStatus('有効になりました。ロック中も通知されます', true);
+  }catch(e){
+    console.error(e);
+    setPushStatus('登録に失敗しました：' + e.message);
+  }
+}
+pushBtn.addEventListener('click', enablePush);
+
+/* フォアグラウンドでプッシュを受信した場合は、自前のポップアップで表示する */
+if(messaging){
+  messaging.onMessage(payload => {
+    const data = payload.data || {};
+    if(!data.alarmId) return;
+    fireAlarm(data.alarmId, { content: data.content || '', datetime: data.datetime || new Date().toISOString() });
+  });
+}
 
 /* ============================================================
    状態管理
